@@ -1,0 +1,6 @@
+{
+  "name": "Online Tic-Tac-Toe",
+  "description": "Real-time two-player online Tic-Tac-Toe web app with room codes, live board synchronization, and turn indicators.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

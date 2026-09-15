@@ -1,0 +1,2028 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Online Tic-Tac-Toe</title>
+  <meta name="description" content="Real-time two-player online Tic-Tac-Toe web app with room codes, live board synchronization via Supabase Realtime, and turn indicators." />
+  <meta property="og:title" content="Online Tic-Tac-Toe" />
+  <meta property="og:description" content="Real-time two-player online Tic-Tac-Toe web app with room codes, live board synchronization via Supabase Realtime, and turn indicators." />
+  <meta property="og:type" content="website" />
+
+  <!-- Supabase JS Client via CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    :root {
+      --bg-main: #0b0f19;
+      --bg-surface: #141d2e;
+      --bg-surface-hover: #1c273d;
+      --bg-cell: #1a2337;
+      --bg-cell-hover: #222e47;
+      --border-subtle: #23324d;
+      --border-accent: #3b82f6;
+      --text-primary: #f1f5f9;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --color-x: #f43f5e;
+      --color-x-glow: rgba(244, 63, 94, 0.25);
+      --color-o: #06b6d4;
+      --color-o-glow: rgba(6, 182, 212, 0.25);
+      --color-win: #eab308;
+      --color-win-glow: rgba(234, 179, 8, 0.3);
+      --color-success: #10b981;
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 20px;
+      --font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    body {
+      background-color: var(--bg-main);
+      color: var(--text-primary);
+      font-family: var(--font-family);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 16px;
+    }
+
+    .app-container {
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      margin: 0 auto;
+    }
+
+    /* Header */
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .brand-icon {
+      font-weight: 800;
+      font-size: 20px;
+      letter-spacing: -1px;
+      background: linear-gradient(135deg, var(--color-x), var(--color-o));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .brand-title {
+      font-size: 17px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-icon {
+      background: transparent;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-muted);
+      border-radius: var(--radius-sm);
+      width: 34px;
+      height: 34px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      font-size: 15px;
+      transition: all 0.2s ease;
+    }
+
+    .btn-icon:hover {
+      background: var(--bg-surface-hover);
+      color: var(--text-primary);
+      border-color: var(--border-accent);
+    }
+
+
+
+    /* Card */
+    .card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 24px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.35);
+    }
+
+    /* Views */
+    .view {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .view.hidden {
+      display: none !important;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text-primary);
+      text-align: center;
+    }
+
+    p.subtitle {
+      font-size: 14px;
+      color: var(--text-muted);
+      text-align: center;
+      line-height: 1.5;
+    }
+
+    /* Forms */
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      background: var(--bg-cell);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 12px 16px;
+      font-size: 16px;
+      color: var(--text-primary);
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input[type="text"]:focus {
+      border-color: var(--border-accent);
+      box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25);
+    }
+
+    input[type="text"]::placeholder {
+      color: var(--text-dim);
+    }
+
+    .room-code-input {
+      font-family: monospace;
+      font-size: 18px !important;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+    }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      width: 100%;
+      padding: 13px 20px;
+      border-radius: var(--radius-md);
+      font-size: 15px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-decoration: none;
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+
+    .btn-primary {
+      background: #2563eb;
+      color: #ffffff;
+      box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+    }
+
+    .btn-primary:hover:not(:disabled) {
+      background: #1d4ed8;
+      transform: translateY(-1px);
+    }
+
+    .btn-secondary {
+      background: var(--bg-cell);
+      color: var(--text-primary);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .btn-secondary:hover:not(:disabled) {
+      background: var(--bg-surface-hover);
+      border-color: var(--text-dim);
+    }
+
+    .btn-danger {
+      background: rgba(244, 63, 94, 0.15);
+      color: var(--color-x);
+      border: 1px solid rgba(244, 63, 94, 0.3);
+    }
+
+    .btn-danger:hover:not(:disabled) {
+      background: rgba(244, 63, 94, 0.25);
+    }
+
+    .btn-sm {
+      padding: 8px 14px;
+      font-size: 13px;
+      border-radius: var(--radius-sm);
+    }
+
+    .divider {
+      display: flex;
+      align-items: center;
+      text-align: center;
+      color: var(--text-dim);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .divider::before,
+    .divider::after {
+      content: '';
+      flex: 1;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .divider span {
+      padding: 0 12px;
+    }
+
+    /* Game Header Info */
+    .game-meta-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: var(--bg-cell);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      font-size: 14px;
+    }
+
+    .room-code-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: monospace;
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--border-accent);
+      background: rgba(59, 130, 246, 0.1);
+      padding: 4px 8px;
+      border-radius: var(--radius-sm);
+      border: 1px dashed rgba(59, 130, 246, 0.3);
+    }
+
+    .copy-btn {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 13px;
+      padding: 2px 4px;
+      border-radius: 4px;
+      display: inline-flex;
+      align-items: center;
+    }
+
+    .copy-btn:hover {
+      color: var(--text-primary);
+    }
+
+    /* Matchup Cards */
+    .matchup {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .player-card {
+      background: var(--bg-cell);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+
+    .player-card.active-turn {
+      border-color: var(--border-accent);
+      box-shadow: 0 0 14px rgba(59, 130, 246, 0.25);
+    }
+
+    .player-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .symbol-pill {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      font-weight: 800;
+      font-size: 14px;
+    }
+
+    .symbol-pill.x {
+      background: var(--color-x-glow);
+      color: var(--color-x);
+    }
+
+    .symbol-pill.o {
+      background: var(--color-o-glow);
+      color: var(--color-o);
+    }
+
+    .player-name {
+      font-size: 14px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .player-status-tag {
+      font-size: 11px;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--text-dim);
+    }
+
+    .status-dot.online {
+      background: var(--color-success);
+      box-shadow: 0 0 6px var(--color-success);
+    }
+
+    .status-dot.offline {
+      background: var(--color-x);
+    }
+
+    .score-badge {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .vs-text {
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-dim);
+      text-transform: uppercase;
+    }
+
+    /* Turn Indicator Banner */
+    .turn-banner {
+      padding: 12px 16px;
+      border-radius: var(--radius-md);
+      font-size: 15px;
+      font-weight: 600;
+      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+    }
+
+    .turn-banner.my-turn {
+      background: rgba(16, 185, 129, 0.15);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      color: #6ee7b7;
+      animation: pulse-glow 2s infinite ease-in-out;
+    }
+
+    .turn-banner.opponent-turn {
+      background: rgba(100, 116, 139, 0.15);
+      border: 1px solid rgba(100, 116, 139, 0.3);
+      color: var(--text-muted);
+    }
+
+    .turn-banner.waiting {
+      background: rgba(234, 179, 8, 0.15);
+      border: 1px solid rgba(234, 179, 8, 0.3);
+      color: #fde047;
+    }
+
+    .turn-banner.win {
+      background: rgba(234, 179, 8, 0.2);
+      border: 1px solid #eab308;
+      color: #fef08a;
+      font-size: 17px;
+    }
+
+    .turn-banner.loss {
+      background: rgba(244, 63, 94, 0.15);
+      border: 1px solid rgba(244, 63, 94, 0.4);
+      color: #fda4af;
+      font-size: 17px;
+    }
+
+    .turn-banner.draw {
+      background: rgba(148, 163, 184, 0.15);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-primary);
+      font-size: 17px;
+    }
+
+    .turn-banner.disconnected {
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #fca5a5;
+    }
+
+    @keyframes pulse-glow {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.8; }
+    }
+
+    /* 3x3 Board */
+    .board-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 8px 0;
+    }
+
+    .board-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      grid-template-rows: repeat(3, 1fr);
+      gap: 10px;
+      width: 100%;
+      max-width: 360px;
+      aspect-ratio: 1 / 1;
+      background: var(--bg-surface);
+      padding: 10px;
+      border-radius: var(--radius-lg);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .cell {
+      background: var(--bg-cell);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 46px;
+      font-weight: 800;
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.15s ease;
+      position: relative;
+    }
+
+    .cell:hover:not(.filled):not(.disabled) {
+      background: var(--bg-cell-hover);
+      border-color: var(--border-accent);
+      transform: scale(1.02);
+    }
+
+    .cell:active:not(.filled):not(.disabled) {
+      transform: scale(0.98);
+    }
+
+    .cell.disabled {
+      cursor: not-allowed;
+    }
+
+    .cell.filled {
+      cursor: default;
+    }
+
+    .cell.mark-x {
+      color: var(--color-x);
+      text-shadow: 0 0 16px var(--color-x-glow);
+    }
+
+    .cell.mark-o {
+      color: var(--color-o);
+      text-shadow: 0 0 16px var(--color-o-glow);
+    }
+
+    .cell.winning-cell {
+      background: rgba(234, 179, 8, 0.15);
+      border-color: var(--color-win);
+      box-shadow: 0 0 16px var(--color-win-glow);
+      animation: pulse-win 1.5s infinite;
+    }
+
+    @keyframes pulse-win {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.04); }
+    }
+
+    .cell-glyph {
+      display: inline-block;
+      animation: popIn 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    @keyframes popIn {
+      0% { transform: scale(0.3); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .game-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 16px;
+      z-index: 100;
+      backdrop-filter: blur(4px);
+    }
+
+    .modal-overlay.hidden {
+      display: none !important;
+    }
+
+    .modal-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      width: 100%;
+      max-width: 440px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      box-shadow: 0 20px 30px rgba(0, 0, 0, 0.5);
+    }
+
+    .modal-card.wide {
+      max-width: 580px;
+    }
+
+    .modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .modal-title {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .modal-body {
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.6;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .sql-box {
+      background: var(--bg-cell);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 11.5px;
+      line-height: 1.45;
+      color: #a5f3fc;
+      overflow-x: auto;
+      max-height: 200px;
+      user-select: all;
+      white-space: pre;
+      margin: 0;
+    }
+
+    .step-list {
+      padding-left: 20px;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      font-size: 13px;
+      color: var(--text-primary);
+    }
+
+    .step-list li span.step-highlight {
+      color: var(--color-x);
+      font-weight: 600;
+    }
+
+    .alert-box {
+      background: rgba(234, 179, 8, 0.12);
+      border: 1px solid rgba(234, 179, 8, 0.35);
+      border-radius: var(--radius-md);
+      padding: 10px 14px;
+      font-size: 13px;
+      color: #fef08a;
+      line-height: 1.5;
+    }
+
+
+
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1e293b;
+      color: #f8fafc;
+      padding: 10px 18px;
+      border-radius: 9999px;
+      font-size: 13px;
+      font-weight: 500;
+      border: 1px solid var(--border-subtle);
+      box-shadow: 0 10px 20px rgba(0,0,0,0.3);
+      z-index: 200;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.25s ease, transform 0.25s ease;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(-6px);
+    }
+  </style>
+</head>
+<body>
+
+  <div class="app-container">
+    <!-- Header -->
+    <header>
+      <div class="brand">
+        <span class="brand-icon">#</span>
+        <span class="brand-title">Online Tic-Tac-Toe</span>
+      </div>
+    </header>
+
+    <!-- VIEW 1: HOME / LOBBY SCREEN -->
+    <main id="view-home" class="card view">
+      <div>
+        <h1>Multiplayer Tic-Tac-Toe</h1>
+      </div>
+
+      <div class="form-group">
+        <label for="input-display-name">Your Display Name</label>
+        <input type="text" id="input-display-name" maxlength="16" placeholder="Enter your nickname" value="" />
+      </div>
+
+      <!-- Action 1: Create Room -->
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <button id="btn-create-room" class="btn btn-primary" type="button">
+          <span>Create New Room</span>
+        </button>
+        <p style="font-size: 12px; color: var(--text-dim); text-align: center;">You'll get a room code to send to your friend.</p>
+      </div>
+
+      <div class="divider">
+        <span>OR JOIN EXISTING</span>
+      </div>
+
+      <!-- Action 2: Join Room -->
+      <div class="form-group">
+        <label for="input-room-code">Room Code</label>
+        <div style="display: flex; gap: 8px;">
+          <input type="text" id="input-room-code" class="room-code-input" maxlength="6" placeholder="e.g. 8K2M9" />
+          <button id="btn-join-room" class="btn btn-secondary" style="width: auto; padding: 0 20px;" type="button">Join</button>
+        </div>
+      </div>
+    </main>
+
+    <!-- VIEW 2: GAMEPLAY SCREEN -->
+    <main id="view-game" class="card view hidden">
+      <!-- Game Meta / Room Info -->
+      <div class="game-meta-bar">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="color: var(--text-dim); font-size: 13px;">Room:</span>
+          <span id="display-room-code" class="room-code-badge">------</span>
+          <button id="btn-copy-code" class="copy-btn" title="Copy room code">📋 Copy</button>
+        </div>
+        <button id="btn-leave-room" class="btn btn-danger btn-sm" type="button">Leave Room</button>
+      </div>
+
+      <!-- Matchup Header -->
+      <div class="matchup">
+        <!-- Player X (Host) -->
+        <div id="card-player-x" class="player-card">
+          <div class="player-card-header">
+            <span class="symbol-pill x">X</span>
+            <span id="score-player-x" class="score-badge">0</span>
+          </div>
+          <div id="name-player-x" class="player-name">Player X</div>
+          <div class="player-status-tag">
+            <span id="dot-player-x" class="status-dot"></span>
+            <span id="status-player-x">Waiting</span>
+          </div>
+        </div>
+
+        <div class="vs-text">VS</div>
+
+        <!-- Player O (Guest) -->
+        <div id="card-player-o" class="player-card">
+          <div class="player-card-header">
+            <span class="symbol-pill o">O</span>
+            <span id="score-player-o" class="score-badge">0</span>
+          </div>
+          <div id="name-player-o" class="player-name">Waiting...</div>
+          <div class="player-status-tag">
+            <span id="dot-player-o" class="status-dot"></span>
+            <span id="status-player-o">Not joined</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Turn / Status Indicator Banner -->
+      <div id="turn-banner" class="turn-banner waiting">
+        Waiting for opponent to join...
+      </div>
+
+      <!-- 3x3 Tic-Tac-Toe Board -->
+      <div class="board-container">
+        <div id="board" class="board-grid" role="grid" aria-label="Tic Tac Toe Board">
+          <div id="cell-0" class="cell" data-index="0" role="gridcell" tabindex="0"></div>
+          <div id="cell-1" class="cell" data-index="1" role="gridcell" tabindex="0"></div>
+          <div id="cell-2" class="cell" data-index="2" role="gridcell" tabindex="0"></div>
+          <div id="cell-3" class="cell" data-index="3" role="gridcell" tabindex="0"></div>
+          <div id="cell-4" class="cell" data-index="4" role="gridcell" tabindex="0"></div>
+          <div id="cell-5" class="cell" data-index="5" role="gridcell" tabindex="0"></div>
+          <div id="cell-6" class="cell" data-index="6" role="gridcell" tabindex="0"></div>
+          <div id="cell-7" class="cell" data-index="7" role="gridcell" tabindex="0"></div>
+          <div id="cell-8" class="cell" data-index="8" role="gridcell" tabindex="0"></div>
+        </div>
+      </div>
+
+      <!-- Post-Game & Room Controls -->
+      <div class="game-actions">
+        <button id="btn-play-again" class="btn btn-primary hidden" type="button">
+          🔄 Play Again
+        </button>
+      </div>
+    </main>
+  </div>
+
+
+
+  <!-- Supabase SQL Setup Modal -->
+  <div id="modal-schema" class="modal-overlay hidden">
+    <div class="modal-card wide">
+      <div class="modal-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <span style="font-size: 20px;">⚡</span>
+          <h3 class="modal-title">Database Setup Required</h3>
+        </div>
+        <button id="btn-close-schema-modal" class="btn-icon" aria-label="Close schema modal">✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="alert-box-schema" class="alert-box">
+          <strong>Database setup needed:</strong> The <code>rooms</code> table or RLS policies have not been created in your Supabase project yet.
+        </div>
+        <p style="margin: 0; font-size: 13px;">Follow these 3 quick steps to enable multiplayer gameplay:</p>
+        <ol class="step-list">
+          <li>Click <span class="step-highlight">Copy SQL Script</span> below.</li>
+          <li>Open your project's <a id="link-supabase-sql" href="https://supabase.com/dashboard" target="_blank" rel="noopener noreferrer" style="color: var(--color-x); text-decoration: underline; font-weight: 600;">Supabase SQL Editor ↗</a>.</li>
+          <li>Paste the script, click <span class="step-highlight">Run</span>, then return here!</li>
+        </ol>
+
+        <pre id="pre-sql-script" class="sql-box">-- 1. Create the rooms table
+create table if not exists public.rooms (
+  id uuid primary key default gen_random_uuid(),
+  code text not null unique,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null,
+  status text not null default 'waiting',
+  turn text not null default 'X',
+  board jsonb not null default '["", "", "", "", "", "", "", "", ""]'::jsonb,
+  winner text default null,
+  winning_combo jsonb default null,
+  player_x jsonb not null default '{}'::jsonb,
+  player_o jsonb default null,
+  draws integer not null default 0,
+  abandoned_by text default null
+);
+
+-- 2. Ensure full row data is broadcast in update payloads
+alter table public.rooms replica identity full;
+
+-- 3. Enable Row Level Security (RLS)
+alter table public.rooms enable row level security;
+
+-- 4. Create permissive policies for open two-player sessions
+drop policy if exists "Allow public read on rooms" on public.rooms;
+create policy "Allow public read on rooms"
+  on public.rooms for select
+  using (true);
+
+drop policy if exists "Allow public insert on rooms" on public.rooms;
+create policy "Allow public insert on rooms"
+  on public.rooms for insert
+  with check (true);
+
+drop policy if exists "Allow public update on rooms" on public.rooms;
+create policy "Allow public update on rooms"
+  on public.rooms for update
+  using (true)
+  with check (true);
+
+-- 5. Enable Realtime broadcasting on the rooms table
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables 
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'rooms'
+  ) then
+    alter publication supabase_realtime add table public.rooms;
+  end if;
+end $$;</pre>
+      </div>
+      <div style="display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap;">
+        <button id="btn-copy-sql" class="btn btn-secondary btn-sm" type="button" style="width: auto;">📋 Copy SQL Script</button>
+        <button id="btn-schema-retry" class="btn btn-primary btn-sm" type="button" style="width: auto;">Done! Try Again</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast">Notice message</div>
+
+  <!-- ========================================================================= -->
+  <!-- JAVASCRIPT & SUPABASE REALTIME SYNC LOGIC -->
+  <!-- ========================================================================= -->
+  <script>
+    (() => {
+    // -------------------------------------------------------------------------
+    // 1. SUPABASE CONFIGURATION
+    // -------------------------------------------------------------------------
+    const SUPABASE_URL = "https://pnlapqqclxnjartdeeez.supabase.co";
+    const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBubGFwcXFjbHhuamFydGRlZWV6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk0NTA5MjUsImV4cCI6MjEwNTAyNjkyNX0.ot0e3x-Qq2eLZbVYXujnoVNtkrhIbrQKVdaEcu6Y9Dk";
+
+    const supabaseConfig = {
+      supabaseUrl: SUPABASE_URL,
+      supabaseAnonKey: SUPABASE_ANON_KEY
+    };
+
+    // -------------------------------------------------------------------------
+    // 2. APP STATE & VARIABLES
+    // -------------------------------------------------------------------------
+    let supabaseClient = null;
+    let currentRoomCode = null;
+    let roomChannel = null;
+    let pollInterval = null;
+    let isSubmittingMove = false;
+
+    // Cross-context resilient storage layer with in-memory fallback for sandboxed iframes
+    const storage = {
+      _mem: {},
+      get(key) {
+        try {
+          const val = localStorage.getItem(key);
+          if (val !== null) return val;
+        } catch (e) {}
+        try {
+          const val = sessionStorage.getItem(key);
+          if (val !== null) return val;
+        } catch (e) {}
+        return this._mem[key] || null;
+      },
+      set(key, value) {
+        this._mem[key] = value;
+        try {
+          localStorage.setItem(key, value);
+        } catch (e) {}
+        try {
+          sessionStorage.setItem(key, value);
+        } catch (e) {}
+      },
+      remove(key) {
+        delete this._mem[key];
+        try {
+          localStorage.removeItem(key);
+        } catch (e) {}
+        try {
+          sessionStorage.removeItem(key);
+        } catch (e) {}
+      }
+    };
+
+    // Use sessionStorage/storage so two tabs/windows have unique player IDs
+    let myPlayerId = storage.get('ttt_player_id');
+    if (!myPlayerId) {
+      myPlayerId = 'p_' + Math.random().toString(36).substring(2, 10);
+      storage.set('ttt_player_id', myPlayerId);
+    }
+
+    let myPlayerName = storage.get('ttt_player_name') || '';
+    let mySymbol = null; // 'X' or 'O'
+    let currentRoomData = null;
+
+    // DOM Elements
+    const viewHome = document.getElementById('view-home');
+    const viewGame = document.getElementById('view-game');
+    const inputDisplayName = document.getElementById('input-display-name');
+    const inputRoomCode = document.getElementById('input-room-code');
+    const btnCreateRoom = document.getElementById('btn-create-room');
+    const btnJoinRoom = document.getElementById('btn-join-room');
+    const btnLeaveRoom = document.getElementById('btn-leave-room');
+    const btnPlayAgain = document.getElementById('btn-play-again');
+    const btnCopyCode = document.getElementById('btn-copy-code');
+    const displayRoomCode = document.getElementById('display-room-code');
+    const turnBanner = document.getElementById('turn-banner');
+
+    const cardPlayerX = document.getElementById('card-player-x');
+    const cardPlayerO = document.getElementById('card-player-o');
+    const namePlayerX = document.getElementById('name-player-x');
+    const namePlayerO = document.getElementById('name-player-o');
+    const scorePlayerX = document.getElementById('score-player-x');
+    const scorePlayerO = document.getElementById('score-player-o');
+    const dotPlayerX = document.getElementById('dot-player-x');
+    const dotPlayerO = document.getElementById('dot-player-o');
+    const statusPlayerX = document.getElementById('status-player-x');
+    const statusPlayerO = document.getElementById('status-player-o');
+
+    const modalSchema = document.getElementById('modal-schema');
+    const alertBoxSchema = document.getElementById('alert-box-schema');
+    const btnCloseSchemaModal = document.getElementById('btn-close-schema-modal');
+    const btnCopySql = document.getElementById('btn-copy-sql');
+    const btnSchemaRetry = document.getElementById('btn-schema-retry');
+    const linkSupabaseSql = document.getElementById('link-supabase-sql');
+    const preSqlScript = document.getElementById('pre-sql-script');
+
+    const toast = document.getElementById('toast');
+
+    // 8 Winning Combinations
+    const WIN_COMBOS = [
+      [0, 1, 2], [3, 4, 5], [6, 7, 8], // Rows
+      [0, 3, 6], [1, 4, 7], [2, 5, 8], // Columns
+      [0, 4, 8], [2, 4, 6]             // Diagonals
+    ];
+
+    // -------------------------------------------------------------------------
+    // 3. SUPABASE CONFIG SANITIZATION, VALIDATION & CLIENT INITIALIZATION
+    // -------------------------------------------------------------------------
+    function sanitizeSupabaseConfig(raw) {
+      if (!raw) return null;
+      let url = (raw.supabaseUrl || '').trim();
+      // Strip any trailing slash(es) so URL paths don't result in double slashes
+      url = url.replace(/\/+$/, '');
+      // Strip any whitespace, line breaks, or carriage returns from the anon key.
+      // Copy-pasting long JWTs on mobile often introduces hidden \r or \n which causes
+      // WebKit's fetch() to immediately throw "TypeError: Load failed" due to header validation.
+      let key = (raw.supabaseAnonKey || '').trim().replace(/[\r\n\t\s]+/g, '');
+      return { supabaseUrl: url, supabaseAnonKey: key };
+    }
+
+    function validateSupabaseConfig(cfg) {
+      if (!cfg || !cfg.supabaseUrl || !cfg.supabaseAnonKey) {
+        return { valid: false, code: 'CONFIG_MISSING', reason: 'Supabase URL or Anon Key is missing.' };
+      }
+      try {
+        const u = new URL(cfg.supabaseUrl);
+        if (!['http:', 'https:'].includes(u.protocol)) {
+          return { valid: false, code: 'CONFIG_PROTOCOL', reason: 'Supabase URL must start with https://' };
+        }
+      } catch (e) {
+        return { valid: false, code: 'CONFIG_MALFORMED', reason: 'Malformed Supabase URL: ' + (e.message || 'invalid format') };
+      }
+      if (cfg.supabaseAnonKey.length < 20) {
+        return { valid: false, code: 'CONFIG_KEY_SHORT', reason: 'Supabase Anon Key appears truncated or invalid.' };
+      }
+      return { valid: true };
+    }
+
+    function getEffectiveConfig() {
+      return sanitizeSupabaseConfig(supabaseConfig);
+    }
+
+    function initSupabase() {
+      const config = getEffectiveConfig();
+      const validation = validateSupabaseConfig(config);
+
+      if (!validation.valid) {
+        console.warn('Supabase configuration status:', validation.reason);
+        return false;
+      }
+
+      try {
+        if (!window.supabase || !window.supabase.createClient) {
+          console.error('Supabase library script not loaded from CDN yet.');
+          return false;
+        }
+
+        // WebKit / Mobile Safari compatibility optimizations:
+        // 1. auth.persistSession: false — prevents localStorage SecurityError in Safari private browsing or iOS WebViews
+        // 2. auth.autoRefreshToken: false — prevents background token refresh fetch failures
+        // 3. auth.detectSessionInUrl: false — prevents unnecessary URL parsing/routing mutations
+        supabaseClient = window.supabase.createClient(config.supabaseUrl, config.supabaseAnonKey, {
+          auth: {
+            persistSession: false,
+            autoRefreshToken: false,
+            detectSessionInUrl: false
+          },
+          realtime: {
+            params: {
+              eventsPerSecond: 10
+            }
+          }
+        });
+
+        console.log('Supabase client initialized successfully with:', config.supabaseUrl);
+        return true;
+      } catch (err) {
+        console.error('Supabase initialization exception:', err);
+        return false;
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // 4. ERROR DIAGNOSTICS & UI HELPERS
+    // -------------------------------------------------------------------------
+    function formatSupabaseError(err, context = 'operation') {
+      if (!err) return 'An unknown error occurred.';
+
+      console.error(`Detailed Supabase error diagnostics [${context}]:`, {
+        error: err,
+        message: err.message,
+        name: err.name,
+        code: err.code,
+        details: err.details,
+        hint: err.hint,
+        status: err.status
+      });
+
+      const rawMsg = err.message || err.toString() || '';
+      const cfg = getEffectiveConfig();
+      const validation = validateSupabaseConfig(cfg);
+
+      // 1. Placeholder / invalid configuration detection
+      if (!validation.valid && (rawMsg.includes('Load failed') || rawMsg.includes('Failed to fetch') || rawMsg.includes('NetworkError'))) {
+        return `Supabase configuration required: ${validation.reason}`;
+      }
+
+      // 2. WebKit / Safari "Load failed" specific diagnostic
+      if (rawMsg.includes('Load failed') || (err.name === 'TypeError' && rawMsg.includes('failed'))) {
+        return `Connection to Supabase failed ("Load failed" in WebKit). Verify that your Supabase URL (${cfg.supabaseUrl}) is active, accessible, and not blocked by CORS or network restrictions.`;
+      }
+
+      // 3. PostgreSQL Row-Level Security (RLS) denial
+      if (err.code === '42501' || rawMsg.toLowerCase().includes('violates row-level security')) {
+        return `Database permission denied (RLS policy error). Check that your Supabase "rooms" table has permissive public policies for INSERT and SELECT.`;
+      }
+
+      // 4. Formatted error with code, details, and hints if present
+      const parts = [];
+      if (err.message) parts.push(err.message);
+      if (err.code) parts.push(`[Code: ${err.code}]`);
+      if (err.details && err.details !== err.message) parts.push(`Details: ${err.details}`);
+      if (err.hint) parts.push(`Hint: ${err.hint}`);
+
+      return parts.length > 0 ? parts.join(' — ') : rawMsg;
+    }
+
+    // -------------------------------------------------------------------------
+    // 4. UI HELPERS & NOTIFICATIONS
+    // -------------------------------------------------------------------------
+    let toastTimeout;
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add('show');
+      clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => {
+        toast.classList.remove('show');
+      }, 3000);
+    }
+
+    function switchView(viewName) {
+      if (viewName === 'game') {
+        viewHome.classList.add('hidden');
+        viewGame.classList.remove('hidden');
+      } else {
+        viewGame.classList.add('hidden');
+        viewHome.classList.remove('hidden');
+      }
+    }
+
+    function generateRoomCode() {
+      const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+      let code = '';
+      for (let i = 0; i < 5; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return code;
+    }
+
+    function getPlayerName() {
+      let name = inputDisplayName.value.trim();
+      if (!name) {
+        name = 'Player ' + myPlayerId.substring(2, 5).toUpperCase();
+        inputDisplayName.value = name;
+      }
+      storage.set('ttt_player_name', name);
+      myPlayerName = name;
+      return name;
+    }
+
+    function isTableMissingError(err) {
+      if (!err) return false;
+      const msg = ((err.message || '') + ' ' + (err.details || '') + ' ' + (err.hint || '')).toLowerCase();
+      return err.code === 'PGRST205' ||
+             err.code === '42P01' ||
+             msg.includes('schema cache') ||
+             msg.includes('could not find the table') ||
+             (msg.includes('rooms') && (msg.includes('not find') || msg.includes('does not exist')));
+    }
+
+    function openSchemaModal(customMsg) {
+      const cfg = getEffectiveConfig();
+      if (alertBoxSchema && customMsg) {
+        alertBoxSchema.innerHTML = `<strong>Setup detail:</strong> ${customMsg}`;
+      }
+      if (linkSupabaseSql && cfg && cfg.supabaseUrl) {
+        try {
+          const match = cfg.supabaseUrl.match(/https:\/\/([^.]+)\.supabase\.co/);
+          if (match && match[1]) {
+            linkSupabaseSql.href = `https://supabase.com/dashboard/project/${match[1]}/sql/new`;
+          } else {
+            linkSupabaseSql.href = 'https://supabase.com/dashboard';
+          }
+        } catch (e) {
+          linkSupabaseSql.href = 'https://supabase.com/dashboard';
+        }
+      }
+      modalSchema.classList.remove('hidden');
+    }
+
+    function closeSchemaModal() {
+      modalSchema.classList.add('hidden');
+    }
+
+    // -------------------------------------------------------------------------
+    // 5. GAME ACTIONS: CREATE, JOIN & LEAVE ROOM
+    // -------------------------------------------------------------------------
+    async function handleCreateRoom() {
+      const cfg = getEffectiveConfig();
+      const validation = validateSupabaseConfig(cfg);
+      if (!validation.valid) {
+        showToast(validation.reason);
+        openSchemaModal(validation.reason);
+        return;
+      }
+
+      if (!supabaseClient && !initSupabase()) {
+        showToast('Supabase client could not connect. Check console for error details.');
+        return;
+      }
+
+      btnCreateRoom.disabled = true;
+      const playerName = getPlayerName();
+      const code = generateRoomCode();
+
+      const randomInitialTurn = Math.random() < 0.5 ? 'X' : 'O';
+      const newRoom = {
+        code: code,
+        status: 'waiting',
+        turn: randomInitialTurn,
+        board: ['', '', '', '', '', '', '', '', ''],
+        winner: null,
+        winning_combo: null,
+        player_x: {
+          id: myPlayerId,
+          name: playerName,
+          online: true,
+          score: 0
+        },
+        player_o: null,
+        draws: 0,
+        abandoned_by: null
+      };
+
+      try {
+        const { data, error } = await supabaseClient
+          .from('rooms')
+          .insert([newRoom])
+          .select()
+          .maybeSingle();
+
+        if (error) {
+          if (isTableMissingError(error)) {
+            openSchemaModal('Table "rooms" not found in your Supabase database.');
+            showToast('Table "rooms" not found. Please run the SQL setup script.');
+            return;
+          }
+          throw error;
+        }
+
+        mySymbol = 'X';
+        currentRoomCode = code;
+        currentRoomData = data || newRoom;
+
+        switchView('game');
+        subscribeToRoom(code);
+        showToast('Room ' + code + ' created! Share the code with your friend.');
+      } catch (err) {
+        console.error('Error creating room:', err);
+        if (isTableMissingError(err)) {
+          openSchemaModal('Table "rooms" not found in your Supabase database.');
+          showToast('Table "rooms" not found. Please run the SQL setup script.');
+        } else {
+          showToast('Failed to create room: ' + formatSupabaseError(err, 'Create Room'));
+        }
+      } finally {
+        btnCreateRoom.disabled = false;
+      }
+    }
+
+    async function handleJoinRoom() {
+      const cfg = getEffectiveConfig();
+      const validation = validateSupabaseConfig(cfg);
+      if (!validation.valid) {
+        showToast(validation.reason);
+        openSchemaModal(validation.reason);
+        return;
+      }
+
+      if (!supabaseClient && !initSupabase()) {
+        showToast('Supabase client could not connect. Check console for error details.');
+        return;
+      }
+
+      const code = inputRoomCode.value.trim().toUpperCase();
+      if (!code) {
+        showToast('Please enter a room code.');
+        inputRoomCode.focus();
+        return;
+      }
+
+      btnJoinRoom.disabled = true;
+      const playerName = getPlayerName();
+
+      try {
+        const { data: fetchedRoom, error } = await supabaseClient
+          .from('rooms')
+          .select('*')
+          .eq('code', code)
+          .maybeSingle();
+
+        if (error) {
+          if (isTableMissingError(error)) {
+            openSchemaModal('Table "rooms" not found in your Supabase database.');
+            showToast('Table "rooms" not found. Please run the SQL setup script.');
+            return;
+          }
+          throw error;
+        }
+
+        if (!fetchedRoom) {
+          showToast('Room not found! Please check the code.');
+          btnJoinRoom.disabled = false;
+          return;
+        }
+
+        let room = fetchedRoom;
+        const pX = room.player_x || room.playerX;
+        const pO = room.player_o || room.playerO;
+
+        // Check if player is rejoining as playerX or playerO
+        if (pX && pX.id === myPlayerId) {
+          mySymbol = 'X';
+          const updateData = { player_x: { ...pX, online: true, name: playerName } };
+          if (room.status === 'abandoned' && pO) {
+            updateData.status = 'playing';
+            updateData.abandoned_by = null;
+          }
+          const { data: updatedRoom, error: updateErr } = await supabaseClient
+            .from('rooms')
+            .update(updateData)
+            .eq('code', code)
+            .select()
+            .single();
+          if (updateErr) throw updateErr;
+          if (updatedRoom) room = updatedRoom;
+        } else if (pO && pO.id === myPlayerId) {
+          mySymbol = 'O';
+          const updateData = { player_o: { ...pO, online: true, name: playerName } };
+          if (room.status === 'abandoned' && pX) {
+            updateData.status = 'playing';
+            updateData.abandoned_by = null;
+          }
+          const { data: updatedRoom, error: updateErr } = await supabaseClient
+            .from('rooms')
+            .update(updateData)
+            .eq('code', code)
+            .select()
+            .single();
+          if (updateErr) throw updateErr;
+          if (updatedRoom) room = updatedRoom;
+        } else if (!pO) {
+          // Join as player O
+          mySymbol = 'O';
+          const newPlayerO = {
+            id: myPlayerId,
+            name: playerName,
+            online: true,
+            score: 0
+          };
+          // Random 50/50 starting turn when the first game begins
+          const startingTurn = Math.random() < 0.5 ? 'X' : 'O';
+          const { data: updatedRoom, error: updateErr } = await supabaseClient
+            .from('rooms')
+            .update({
+              player_o: newPlayerO,
+              status: 'playing',
+              turn: startingTurn
+            })
+            .eq('code', code)
+            .select()
+            .single();
+
+          if (updateErr) throw updateErr;
+          if (updatedRoom) {
+            room = updatedRoom;
+          } else {
+            room.player_o = newPlayerO;
+            room.status = 'playing';
+            room.turn = startingTurn;
+          }
+        } else {
+          showToast('Room is full (already has 2 players).');
+          btnJoinRoom.disabled = false;
+          return;
+        }
+
+        currentRoomCode = code;
+        currentRoomData = room;
+        switchView('game');
+        subscribeToRoom(code);
+        showToast('Joined Room ' + code + ' as ' + mySymbol + '!');
+      } catch (err) {
+        console.error('Error joining room:', err);
+        if (isTableMissingError(err)) {
+          openSchemaModal('Table "rooms" not found in your Supabase database.');
+          showToast('Table "rooms" not found. Please run the SQL setup script.');
+        } else {
+          showToast('Failed to join room: ' + formatSupabaseError(err, 'Join Room'));
+        }
+      } finally {
+        btnJoinRoom.disabled = false;
+      }
+    }
+
+    function safeConfirm(message) {
+      try {
+        return window.confirm(message);
+      } catch (e) {
+        return true;
+      }
+    }
+
+    function safeUpdateUrlRoom(code) {
+      try {
+        const url = new URL(window.location);
+        if (code) {
+          url.searchParams.set('room', code);
+        } else {
+          url.searchParams.delete('room');
+        }
+        window.history.replaceState({}, '', url);
+      } catch (e) {
+        // Silently caught in sandboxed cross-origin iframes
+      }
+    }
+
+    function startRoomPolling(code) {
+      stopRoomPolling();
+      // Poll every 1500ms so game states sync reliably even in sandboxed iframes where WebSockets are blocked
+      pollInterval = setInterval(async () => {
+        if (!currentRoomCode || currentRoomCode !== code || !supabaseClient) {
+          stopRoomPolling();
+          return;
+        }
+
+        try {
+          const { data, error } = await supabaseClient
+            .from('rooms')
+            .select('*')
+            .eq('code', code)
+            .maybeSingle();
+
+          if (error || !data) return;
+
+          const prev = currentRoomData;
+          if (!prev) {
+            currentRoomData = data;
+            renderGame(data);
+            return;
+          }
+
+          const statusChanged = prev.status !== data.status;
+          const turnChanged = prev.turn !== data.turn;
+          const winnerChanged = prev.winner !== data.winner;
+          const boardChanged = JSON.stringify(prev.board) !== JSON.stringify(data.board);
+          const pOChanged = (prev.player_o?.id !== data.player_o?.id) || (prev.player_o?.online !== data.player_o?.online);
+          const pXChanged = (prev.player_x?.id !== data.player_x?.id) || (prev.player_x?.online !== data.player_x?.online);
+
+          if (statusChanged || turnChanged || winnerChanged || boardChanged || pOChanged || pXChanged) {
+            currentRoomData = data;
+            renderGame(data);
+          }
+        } catch (e) {}
+      }, 1500);
+    }
+
+    function stopRoomPolling() {
+      if (pollInterval) {
+        clearInterval(pollInterval);
+        pollInterval = null;
+      }
+    }
+
+    async function handleLeaveRoom() {
+      if (!currentRoomCode) return;
+
+      if (safeConfirm('Are you sure you want to leave this room?')) {
+        try {
+          if (supabaseClient && currentRoomCode && mySymbol && currentRoomData) {
+            const pX = currentRoomData.player_x || currentRoomData.playerX;
+            const pO = currentRoomData.player_o || currentRoomData.playerO;
+
+            const updates = {
+              status: 'abandoned',
+              abandoned_by: myPlayerName
+            };
+
+            if (mySymbol === 'X' && pX) {
+              updates.player_x = { ...pX, online: false };
+            } else if (mySymbol === 'O' && pO) {
+              updates.player_o = { ...pO, online: false };
+            }
+
+            await supabaseClient
+              .from('rooms')
+              .update(updates)
+              .eq('code', currentRoomCode);
+          }
+        } catch (e) {
+          console.warn('Error marking offline on leave', e);
+        }
+
+        teardownRoom();
+        switchView('home');
+        showToast('Left the room.');
+      }
+    }
+
+    function teardownRoom() {
+      stopRoomPolling();
+      if (roomChannel && supabaseClient) {
+        try {
+          supabaseClient.removeChannel(roomChannel);
+        } catch (e) {}
+        roomChannel = null;
+      }
+      currentRoomCode = null;
+      currentRoomData = null;
+      mySymbol = null;
+      safeUpdateUrlRoom(null);
+    }
+
+    // -------------------------------------------------------------------------
+    // 6. REALTIME BOARD & ROOM STATE SYNC (SUPABASE REALTIME + POLLING)
+    // -------------------------------------------------------------------------
+    async function subscribeToRoom(code) {
+      if (roomChannel && supabaseClient) {
+        try {
+          supabaseClient.removeChannel(roomChannel);
+        } catch (e) {}
+        roomChannel = null;
+      }
+
+      displayRoomCode.textContent = code;
+
+      // Update URL safely (won't crash sandboxed iframes)
+      safeUpdateUrlRoom(code);
+
+      // Start reliable polling fallback
+      startRoomPolling(code);
+
+      // Fetch initial fresh data
+      try {
+        const { data, error } = await supabaseClient
+          .from('rooms')
+          .select('*')
+          .eq('code', code)
+          .maybeSingle();
+
+        if (error) {
+          if (isTableMissingError(error)) {
+            openSchemaModal();
+            return;
+          }
+          console.warn('Initial fetch error:', error);
+        } else if (data) {
+          currentRoomData = data;
+          renderGame(data);
+        }
+      } catch (err) {
+        console.warn('Could not fetch initial room data:', err);
+      }
+
+      // Subscribe to Supabase Postgres Changes for this room
+      try {
+        roomChannel = supabaseClient
+          .channel(`public:rooms:code=eq.${code}`)
+          .on(
+            'postgres_changes',
+            {
+              event: '*',
+              schema: 'public',
+              table: 'rooms',
+              filter: `code=eq.${code}`
+            },
+            (payload) => {
+              if (payload.eventType === 'DELETE') {
+                showToast('This room was closed.');
+                teardownRoom();
+                switchView('home');
+                return;
+              }
+
+              const updatedRoom = payload.new;
+              if (updatedRoom) {
+                currentRoomData = updatedRoom;
+                renderGame(updatedRoom);
+              }
+            }
+          )
+          .subscribe((status, err) => {
+            if (err) {
+              console.warn('Realtime subscription notification (polling fallback active):', err);
+            }
+          });
+      } catch (subErr) {
+        console.warn('Realtime channel subscription error (polling fallback active):', subErr);
+      }
+    }
+
+    function renderGame(room) {
+      // 1. Update Player Badges
+      const pX = room.player_x || room.playerX || {};
+      const pO = room.player_o || room.playerO || {};
+
+      namePlayerX.textContent = pX.name ? (pX.id === myPlayerId ? `${pX.name} (You)` : pX.name) : 'Waiting...';
+      scorePlayerX.textContent = pX.score || 0;
+      dotPlayerX.className = 'status-dot ' + (pX.online ? 'online' : 'offline');
+      statusPlayerX.textContent = pX.online ? 'Online' : 'Disconnected';
+
+      namePlayerO.textContent = pO.name ? (pO.id === myPlayerId ? `${pO.name} (You)` : pO.name) : 'Waiting for opponent...';
+      scorePlayerO.textContent = pO.score || 0;
+      dotPlayerO.className = 'status-dot ' + (pO.name ? (pO.online ? 'online' : 'offline') : '');
+      statusPlayerO.textContent = pO.name ? (pO.online ? 'Online' : 'Disconnected') : 'Empty slot';
+
+      // Highlight active turn card
+      cardPlayerX.classList.toggle('active-turn', room.status === 'playing' && room.turn === 'X');
+      cardPlayerO.classList.toggle('active-turn', room.status === 'playing' && room.turn === 'O');
+
+      // 2. Render Board
+      const boardArr = room.board || ['', '', '', '', '', '', '', '', ''];
+      const winCombo = room.winning_combo || room.winningCombo || [];
+
+      for (let i = 0; i < 9; i++) {
+        const cell = document.getElementById('cell-' + i);
+        const mark = boardArr[i];
+
+        cell.className = 'cell';
+        cell.innerHTML = '';
+
+        if (mark === 'X') {
+          cell.classList.add('filled', 'mark-x');
+          cell.innerHTML = '<span class="cell-glyph">✕</span>';
+        } else if (mark === 'O') {
+          cell.classList.add('filled', 'mark-o');
+          cell.innerHTML = '<span class="cell-glyph">◯</span>';
+        } else {
+          // Empty cell
+          const isMyTurn = room.status === 'playing' && room.turn === mySymbol;
+          if (!isMyTurn) {
+            cell.classList.add('disabled');
+          }
+        }
+
+        if (winCombo && winCombo.includes(i)) {
+          cell.classList.add('winning-cell');
+        }
+      }
+
+      // 3. Status & Turn Banner
+      updateStatusBanner(room);
+
+      // 4. "Play Again" Button
+      if (room.status === 'finished') {
+        btnPlayAgain.classList.remove('hidden');
+      } else {
+        btnPlayAgain.classList.add('hidden');
+      }
+    }
+
+    function updateStatusBanner(room) {
+      turnBanner.className = 'turn-banner';
+
+      // Check for abandoned
+      if (room.status === 'abandoned') {
+        turnBanner.classList.add('disconnected');
+        const leaver = room.abandoned_by || room.abandonedBy || 'Opponent';
+        turnBanner.textContent = `⚠️ ${leaver} left the game.`;
+        return;
+      }
+
+      // Waiting for second player
+      const pO = room.player_o || room.playerO;
+      if (room.status === 'waiting' || !pO) {
+        turnBanner.classList.add('waiting');
+        turnBanner.innerHTML = `⏳ Waiting for Opponent to join with code: <strong>${room.code}</strong>`;
+        return;
+      }
+
+      // Opponent disconnected check
+      const opponent = mySymbol === 'X' ? (room.player_o || room.playerO) : (room.player_x || room.playerX);
+      if (opponent && opponent.online === false) {
+        turnBanner.classList.add('disconnected');
+        turnBanner.textContent = `⚠️ ${opponent.name || 'Opponent'} disconnected. Waiting for reconnect...`;
+        return;
+      }
+
+      // Finished (Win / Draw)
+      if (room.status === 'finished') {
+        if (room.winner === 'draw') {
+          turnBanner.classList.add('draw');
+          turnBanner.textContent = "🤝 Game Over! It's a Draw!";
+        } else if (room.winner === mySymbol) {
+          turnBanner.classList.add('win');
+          turnBanner.textContent = `🎉 You Won! Excellent move!`;
+        } else {
+          turnBanner.classList.add('loss');
+          const pX = room.player_x || room.playerX;
+          const winnerName = room.winner === 'X' ? pX?.name : pO?.name;
+          turnBanner.textContent = `💀 ${winnerName || 'Opponent'} won this round.`;
+        }
+        return;
+      }
+
+      // Active Play: Turn Indicator
+      if (room.status === 'playing') {
+        if (room.turn === mySymbol) {
+          turnBanner.classList.add('my-turn');
+          turnBanner.textContent = `🟢 Your Turn (${mySymbol}) — Tap an empty square`;
+        } else {
+          turnBanner.classList.add('opponent-turn');
+          const pX = room.player_x || room.playerX;
+          const oppName = mySymbol === 'X' ? (pO?.name || 'Opponent') : (pX?.name || 'Opponent');
+          turnBanner.textContent = `⏳ Waiting for ${oppName}'s move...`;
+        }
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // 7. BOARD CLICK & MOVE LOGIC
+    // -------------------------------------------------------------------------
+    async function handleCellClick(index) {
+      if (!currentRoomData || !currentRoomCode) return;
+      if (isSubmittingMove) return;
+
+      if (currentRoomData.status !== 'playing') {
+        if (currentRoomData.status === 'waiting') {
+          showToast('Waiting for your opponent to join first!');
+        }
+        return;
+      }
+
+      if (currentRoomData.turn !== mySymbol) {
+        showToast("Wait for your opponent's turn!");
+        return;
+      }
+
+      const board = currentRoomData.board || ['', '', '', '', '', '', '', '', ''];
+      if (board[index] !== '') {
+        return; // Cell already occupied
+      }
+
+      isSubmittingMove = true;
+      try {
+        // Make move
+        const nextBoard = [...board];
+        nextBoard[index] = mySymbol;
+
+        // Check win or draw
+        let winner = null;
+        let winningCombo = null;
+
+        for (const combo of WIN_COMBOS) {
+          const [a, b, c] = combo;
+          if (nextBoard[a] && nextBoard[a] === nextBoard[b] && nextBoard[a] === nextBoard[c]) {
+            winner = mySymbol;
+            winningCombo = combo;
+            break;
+          }
+        }
+
+        const isDraw = !winner && nextBoard.every(cell => cell !== '');
+        let nextTurn = mySymbol === 'X' ? 'O' : 'X';
+
+        const updates = {
+          board: nextBoard,
+          turn: nextTurn
+        };
+
+        const pX = currentRoomData.player_x || currentRoomData.playerX;
+        const pO = currentRoomData.player_o || currentRoomData.playerO;
+
+        if (winner) {
+          updates.status = 'finished';
+          updates.winner = winner;
+          updates.winning_combo = winningCombo;
+
+          // Update score
+          if (winner === 'X' && pX) {
+            updates.player_x = { ...pX, score: (pX.score || 0) + 1 };
+          } else if (winner === 'O' && pO) {
+            updates.player_o = { ...pO, score: (pO.score || 0) + 1 };
+          }
+        } else if (isDraw) {
+          updates.status = 'finished';
+          updates.winner = 'draw';
+          updates.winning_combo = null;
+          updates.draws = (currentRoomData.draws || 0) + 1;
+        }
+
+        const { data: updatedRoom, error } = await supabaseClient
+          .from('rooms')
+          .update(updates)
+          .eq('code', currentRoomCode)
+          .eq('turn', mySymbol)
+          .eq('status', 'playing')
+          .select()
+          .single();
+
+        if (error) throw error;
+        if (updatedRoom) {
+          currentRoomData = updatedRoom;
+          renderGame(updatedRoom);
+        }
+      } catch (err) {
+        console.error('Error submitting move:', err);
+        showToast('Move failed: ' + (err.message || err.toString()));
+      } finally {
+        isSubmittingMove = false;
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // 8. RESET / PLAY AGAIN LOGIC
+    // -------------------------------------------------------------------------
+    async function handlePlayAgain() {
+      if (!currentRoomCode || !currentRoomData) return;
+
+      btnPlayAgain.disabled = true;
+      try {
+        // Random 50/50 starting turn for the new round, independent of previous winner
+        const startingTurn = Math.random() < 0.5 ? 'X' : 'O';
+
+        const { data: updatedRoom, error } = await supabaseClient
+          .from('rooms')
+          .update({
+            board: ['', '', '', '', '', '', '', '', ''],
+            status: 'playing',
+            turn: startingTurn,
+            winner: null,
+            winning_combo: null
+          })
+          .eq('code', currentRoomCode)
+          .select()
+          .single();
+
+        if (error) throw error;
+        if (updatedRoom) {
+          currentRoomData = updatedRoom;
+          renderGame(updatedRoom);
+        }
+        showToast(`New round started! ${startingTurn} moves first.`);
+      } catch (err) {
+        console.error('Error resetting board:', err);
+        showToast('Failed to reset: ' + err.message);
+      } finally {
+        btnPlayAgain.disabled = false;
+      }
+    }
+
+
+
+    // -------------------------------------------------------------------------
+    // 9. IMMEDIATE EAGER INITIALIZATION
+    // -------------------------------------------------------------------------
+    // Call initSupabase() immediately at script execution time BEFORE any button handler can fire
+    initSupabase();
+
+    // If Supabase CDN library is still loading, ensure it initializes the instant it becomes available
+    if (!supabaseClient && typeof window !== 'undefined') {
+      const cdnCheckInterval = setInterval(() => {
+        if (window.supabase && window.supabase.createClient) {
+          clearInterval(cdnCheckInterval);
+          initSupabase();
+        }
+      }, 50);
+      setTimeout(() => clearInterval(cdnCheckInterval), 4000);
+    }
+
+    // -------------------------------------------------------------------------
+    // 10. EVENT LISTENERS
+    // -------------------------------------------------------------------------
+    btnCreateRoom.addEventListener('click', handleCreateRoom);
+    btnJoinRoom.addEventListener('click', handleJoinRoom);
+    btnLeaveRoom.addEventListener('click', handleLeaveRoom);
+    btnPlayAgain.addEventListener('click', handlePlayAgain);
+
+    // 3x3 Board cells
+    for (let i = 0; i < 9; i++) {
+      const cell = document.getElementById('cell-' + i);
+      cell.addEventListener('click', () => handleCellClick(i));
+      cell.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          handleCellClick(i);
+        }
+      });
+    }
+
+    // Copy Code / Share
+    btnCopyCode.addEventListener('click', async () => {
+      if (!currentRoomCode) return;
+      try {
+        if (navigator.clipboard) {
+          await navigator.clipboard.writeText(currentRoomCode);
+          showToast(`Copied code ${currentRoomCode} to clipboard!`);
+        } else {
+          showToast(`Room code: ${currentRoomCode}`);
+        }
+      } catch (e) {
+        showToast(`Room code: ${currentRoomCode}`);
+      }
+    });
+
+    if (btnCloseSchemaModal) {
+      btnCloseSchemaModal.addEventListener('click', closeSchemaModal);
+    }
+
+    if (btnCopySql) {
+      btnCopySql.addEventListener('click', async () => {
+        try {
+          const text = preSqlScript ? preSqlScript.innerText : '';
+          if (navigator.clipboard) {
+            await navigator.clipboard.writeText(text);
+          } else {
+            const ta = document.createElement('textarea');
+            ta.value = text;
+            document.body.appendChild(ta);
+            ta.select();
+            document.execCommand('copy');
+            document.body.removeChild(ta);
+          }
+          btnCopySql.textContent = '✓ Copied to Clipboard!';
+          showToast('SQL script copied! Paste it in Supabase SQL Editor and click Run.');
+          setTimeout(() => {
+            btnCopySql.textContent = '📋 Copy SQL Script';
+          }, 3000);
+        } catch (e) {
+          showToast('Failed to copy. Please select the SQL script text manually.');
+        }
+      });
+    }
+
+    if (btnSchemaRetry) {
+      btnSchemaRetry.addEventListener('click', () => {
+        closeSchemaModal();
+        showToast('Retrying...');
+        if (inputRoomCode.value.trim()) {
+          handleJoinRoom();
+        } else {
+          handleCreateRoom();
+        }
+      });
+    }
+
+    inputRoomCode.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        handleJoinRoom();
+      }
+    });
+
+    inputDisplayName.addEventListener('change', () => {
+      getPlayerName();
+    });
+
+    // Handle URL parameters (auto-fill room code from link) immediately and on DOMContentLoaded
+    function setupAppView() {
+      if (myPlayerName) {
+        inputDisplayName.value = myPlayerName;
+      }
+
+      try {
+        const params = new URLSearchParams(window.location.search);
+        const queryRoom = params.get('room');
+        if (queryRoom) {
+          inputRoomCode.value = queryRoom.toUpperCase();
+          showToast(`Room ${queryRoom.toUpperCase()} detected from link.`);
+        }
+      } catch (e) {}
+
+      if (!supabaseClient) {
+        initSupabase();
+      }
+    }
+
+    setupAppView();
+    if (document.readyState === 'loading') {
+      window.addEventListener('DOMContentLoaded', setupAppView);
+    }
+
+    // Clean disconnect on tab close
+    window.addEventListener('beforeunload', () => {
+      try {
+        if (supabaseClient && currentRoomCode && mySymbol && currentRoomData) {
+          const pX = currentRoomData.player_x || currentRoomData.playerX;
+          const pO = currentRoomData.player_o || currentRoomData.playerO;
+          const updates = {};
+          if (mySymbol === 'X' && pX) {
+            updates.player_x = { ...pX, online: false };
+          } else if (mySymbol === 'O' && pO) {
+            updates.player_o = { ...pO, online: false };
+          }
+          if (Object.keys(updates).length > 0) {
+            supabaseClient.from('rooms').update(updates).eq('code', currentRoomCode);
+          }
+        }
+      } catch (e) {}
+    });
+    })();
+  </script>
+</body>
+</html>
